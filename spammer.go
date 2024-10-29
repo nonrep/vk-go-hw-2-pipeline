@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/nonrep/go-homework-2-pipeline/semaphore"
 	uniqueSet "github.com/nonrep/go-homework-2-pipeline/uniqueSet"
@@ -14,19 +13,27 @@ import (
 
 func RunPipeline(cmds ...cmd) {
 	in := make(chan interface{})
+	wg := &sync.WaitGroup{}
 
 	for _, cmd := range cmds {
 		out := make(chan interface{})
 
-		go cmd(in, out)
+		wg.Add(1)
+
+		go func(in, out chan interface{}) {
+			defer wg.Done()
+			defer close(out)
+			cmd(in, out)
+		}(in, out)
 
 		in = out
 	}
 
-	go func() {
-		time.Sleep(10 * time.Second)
-		close(in)
-	}()
+	// go func() {
+	// 	wg.Wait()
+	// 	close(in)
+	// }()
+	wg.Wait()
 }
 
 // in - string
@@ -38,23 +45,22 @@ func SelectUsers(in, out chan interface{}) {
 
 	for email := range in {
 		wg.Add(1)
-		go func(email interface{}, mu *sync.Mutex) {
+		go func(email interface{}) {
 			defer wg.Done()
 
 			user := GetUser(email.(string))
 
-			if !uniqSet.Exists(user.Email) {
-				mu.Lock()
-				uniqSet.Add(user.Email)
-				mu.Unlock()
+			mu.Lock()
+			defer mu.Unlock()
 
+			if !uniqSet.Exists(user.Email) {
+				uniqSet.Add(user.Email)
 				out <- user
 			}
-		}(email, mu)
+		}(email)
 	}
 
 	wg.Wait()
-	close(out)
 }
 
 // in - User
@@ -80,7 +86,6 @@ func SelectMessages(in, out chan interface{}) {
 	}
 
 	wg.Wait()
-	close(out)
 }
 
 func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
@@ -128,7 +133,6 @@ func CheckSpam(in, out chan interface{}) {
 	}
 
 	wg.Wait()
-	close(out)
 }
 
 // in - MsgData
@@ -136,21 +140,25 @@ func CheckSpam(in, out chan interface{}) {
 func CombineResults(in, out chan interface{}) {
 	var result []MsgData
 	mu := &sync.Mutex{}
+	wg := &sync.WaitGroup{}
 
 	for msgData := range in {
-		go func() {
+		wg.Add(1)
+		go func(data MsgData) {
+			defer wg.Done()
 			mu.Lock()
 			defer mu.Unlock()
 
-			result = append(result, msgData.(MsgData))
-		}()
+			result = append(result, data)
+		}(msgData.(MsgData))
 	}
+
+	wg.Wait()
 
 	sort.Sort(BySpamAndID(result))
 
 	for _, msg := range result {
-		out <- fmt.Sprintln(msg.HasSpam, msg.ID)
+		out <- fmt.Sprintf("%t %d", msg.HasSpam, msg.ID)
 	}
 
-	close(out)
 }
