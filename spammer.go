@@ -9,8 +9,7 @@ import (
 	uniqueSet "github.com/nonrep/go-homework-2-pipeline/uniqueSet"
 )
 
-// cat emails.txt | SelectUsers | SelectMessages | CheckSpam | CombineResults
-
+// RunPipeline получает команды, выход одной команды передаестя на вход другой.
 func RunPipeline(cmds ...cmd) {
 	in := make(chan interface{})
 	wg := &sync.WaitGroup{}
@@ -28,16 +27,13 @@ func RunPipeline(cmds ...cmd) {
 
 		in = out
 	}
-
-	// go func() {
-	// 	wg.Wait()
-	// 	close(in)
-	// }()
 	wg.Wait()
 }
 
-// in - string
-// out - User
+// SelectUsers получает емайлы юзеров и передает информацию о юзере.
+//
+// in - string (email юзера);
+// out - User (структура юзера)
 func SelectUsers(in, out chan interface{}) {
 	var wg sync.WaitGroup
 	mu := &sync.Mutex{}
@@ -63,8 +59,10 @@ func SelectUsers(in, out chan interface{}) {
 	wg.Wait()
 }
 
-// in - User
-// out - MsgID
+// SelectMessages получает юзеров, передает парами в processUsers, возвращает ID сообщений юзеров.
+//
+// in - User (структура юзера)
+// out - MsgID (ID сообщения)
 func SelectMessages(in, out chan interface{}) {
 	var users []User
 	wg := &sync.WaitGroup{}
@@ -88,6 +86,9 @@ func SelectMessages(in, out chan interface{}) {
 	wg.Wait()
 }
 
+// processUsers получает юзеров и передает ID их сообщений.
+//
+// out - MsgID (ID сообщения)
 func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
@@ -102,9 +103,12 @@ func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
 	}
 }
 
-// in - MsgID
-// out - MsgData
+// CheckSpam получает ID сообщения и передает информацию о сообщении.
+//
+// in - MsgID (ID сообщения)
+// out - MsgData (структура сообщения)
 func CheckSpam(in, out chan interface{}) {
+	// HasSpam может обрабатывать одновременно только 5 соединений.
 	const connCount = 5
 	sem := semaphore.New(connCount)
 	wg := &sync.WaitGroup{}
@@ -135,8 +139,10 @@ func CheckSpam(in, out chan interface{}) {
 	wg.Wait()
 }
 
-// in - MsgData
-// out - string
+// CombineResults получает данные сообщений и передает информацию о них в виде строки.
+//
+// in - MsgData (структура сообщения)
+// out - string (информация о сообщении: HasSpam и ID)
 func CombineResults(in, out chan interface{}) {
 	var result []MsgData
 	mu := &sync.Mutex{}
