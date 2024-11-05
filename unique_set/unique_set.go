@@ -1,4 +1,4 @@
-package uniqueset
+package unique_set
 
 type UniqueSet struct {
 	values map[string]struct{}

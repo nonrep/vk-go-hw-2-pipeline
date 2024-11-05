@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/nonrep/go-homework-2-pipeline/semaphore"
-	uniqueSet "github.com/nonrep/go-homework-2-pipeline/uniqueSet"
+	uniqueSet "github.com/nonrep/go-homework-2-pipeline/unique_set"
+	errGroup "golang.org/x/sync/errgroup"
 )
 
 // RunPipeline получает команды, выход одной команды передаестя на вход другой.
@@ -36,7 +36,7 @@ func RunPipeline(cmds ...cmd) {
 // out - User (структура юзера)
 func SelectUsers(in, out chan interface{}) {
 	var wg sync.WaitGroup
-	mu := &sync.Mutex{}
+	mu := &sync.RWMutex{}
 	uniqSet := uniqueSet.New()
 
 	for email := range in {
@@ -45,6 +45,13 @@ func SelectUsers(in, out chan interface{}) {
 			defer wg.Done()
 
 			user := GetUser(email.(string))
+
+			mu.RLock()
+			if uniqSet.Exists(user.Email) {
+				mu.RUnlock()
+				return
+			}
+			mu.RUnlock()
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -110,20 +117,15 @@ func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
 func CheckSpam(in, out chan interface{}) {
 	// HasSpam может обрабатывать одновременно только 5 соединений.
 	const connCount = 5
-	sem := semaphore.New(connCount)
-	wg := &sync.WaitGroup{}
+	var g errGroup.Group
+	g.SetLimit(connCount)
 
 	for msgID := range in {
-		wg.Add(1)
-		go func(msgID MsgID) {
-			defer wg.Done()
-			sem.Acquire()
-			defer sem.Release()
-
+		msgID := msgID.(MsgID)
+		g.Go(func() error {
 			hasSpam, err := HasSpam(msgID)
 			if err != nil {
-				fmt.Printf("CheckSpam не удалось проверить сообщение на спам: %v", err)
-				return
+				return err
 			}
 
 			msg := MsgData{
@@ -132,11 +134,12 @@ func CheckSpam(in, out chan interface{}) {
 			}
 
 			out <- msg
-
-		}(msgID.(MsgID))
+			return nil
+		})
 	}
-
-	wg.Wait()
+	if err := g.Wait(); err != nil {
+		fmt.Printf("CheckSpam не удалось проверить сообщение на спам: %v", err)
+	}
 }
 
 // CombineResults получает данные сообщений и передает информацию о них в виде строки.
@@ -161,7 +164,7 @@ func CombineResults(in, out chan interface{}) {
 
 	wg.Wait()
 
-	sort.Sort(BySpamAndID(result))
+	sort.Sort(MsgDataSorter(result))
 
 	for _, msg := range result {
 		out <- fmt.Sprintf("%t %d", msg.HasSpam, msg.ID)
