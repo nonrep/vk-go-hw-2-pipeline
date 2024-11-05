@@ -92,14 +92,14 @@ func SelectMessages(in, out chan interface{}) {
 func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	MsgIDs, err := GetMessages(users...)
+	msgIDs, err := GetMessages(users...)
 	if err != nil {
 		fmt.Printf("SelectMessages не удалось получить сообщения: %v", err)
 		return
 	}
 
-	for _, MsgID := range MsgIDs {
-		out <- MsgID
+	for _, msgID := range msgIDs {
+		out <- msgID
 	}
 }
 
@@ -122,7 +122,7 @@ func CheckSpam(in, out chan interface{}) {
 
 			hasSpam, err := HasSpam(msgID)
 			if err != nil {
-				fmt.Println("CheckSpam не удалось проверить сообщение на спам: ", err)
+				fmt.Printf("CheckSpam не удалось проверить сообщение на спам: %v", err)
 				return
 			}
 
