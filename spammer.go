@@ -94,7 +94,7 @@ func processUsers(users []User, out chan interface{}, wg *sync.WaitGroup) {
 
 	MsgIDs, err := GetMessages(users...)
 	if err != nil {
-		fmt.Println("SelectMessages не удалось получить сообщения: ", err)
+		fmt.Printf("SelectMessages не удалось получить сообщения: %v", err)
 		return
 	}
 
