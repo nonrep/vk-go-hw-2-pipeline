@@ -26,6 +26,18 @@ type MsgData struct {
 	HasSpam bool
 }
 
+// Для сортировки MsgData по HasSpam и ID.
+type MsgDataSorter []MsgData
+
+func (a MsgDataSorter) Len() int { return len(a) }
+func (a MsgDataSorter) Less(i, j int) bool {
+	if a[i].HasSpam == a[j].HasSpam {
+		return a[i].ID < a[j].ID
+	}
+	return a[i].HasSpam
+}
+func (a MsgDataSorter) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
 var usersAliases = map[string]string{
 	"batman@mail.ru":    "bruce.wayne@mail.ru",
 	"spiderman@mail.ru": "peter.parker@mail.ru",
