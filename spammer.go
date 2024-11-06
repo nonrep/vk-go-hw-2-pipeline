@@ -44,7 +44,13 @@ func SelectUsers(in, out chan interface{}) {
 		go func(email interface{}) {
 			defer wg.Done()
 
-			user := GetUser(email.(string))
+			parsedEmail, ok := email.(string)
+			if !ok {
+				fmt.Println("email не является строкой")
+				return
+			}
+
+			user := GetUser(parsedEmail)
 
 			mu.RLock()
 			if uniqSet.Exists(user.Email) {
@@ -153,13 +159,19 @@ func CombineResults(in, out chan interface{}) {
 
 	for msgData := range in {
 		wg.Add(1)
+		parsedMsgData, ok := msgData.(MsgData)
+		if !ok {
+			fmt.Println("msgData не является экземпляров структуры MsgData")
+			return
+		}
+
 		go func(data MsgData) {
 			defer wg.Done()
 			mu.Lock()
 			defer mu.Unlock()
 
 			result = append(result, data)
-		}(msgData.(MsgData))
+		}(parsedMsgData)
 	}
 
 	wg.Wait()
